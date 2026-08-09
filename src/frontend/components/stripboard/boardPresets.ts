@@ -1,5 +1,5 @@
-import { BoardLayout } from "@/types";
-import { mapSize } from "./boardTopology";
+import { Board, BoardLayout } from "@/types";
+import { mapIsPlain, mapSize } from "./boardTopology";
 
 // ── Board presets ──────────────────────────────────────
 //
@@ -85,10 +85,14 @@ function veroboard(rows: number, cols: number): string {
 /** A veroboard with a power rail down each outer column. */
 function edgeRails(rows: number, cols: number): string {
   const middle = Array.from({ length: cols - 2 }, () => "0").join("-");
+  // A rail line joins the row above to the row below, so it goes *between*
+  // rows: one row first, then a rail-and-row pair for each one after. Ending
+  // on a rail would leave it hanging off the bottom with nothing to join to.
   return `# Stripboard with a power rail down each outer column.\n` +
     `define row  = P ${middle} N\n` +
     `define rail = |${" ".repeat((cols - 2) * 2 + 1)}|\n\n` +
-    `repeat ${rows}\n  {row}\n  {rail}\nend\n`;
+    `{row}\n` +
+    (rows > 1 ? `repeat ${rows - 1}\n  {rail}\n  {row}\nend\n` : "");
 }
 
 export const BOARD_PRESETS: BoardPreset[] = [
@@ -140,4 +144,16 @@ export function presetSize(preset: BoardPreset): { rows: number; cols: number } 
 
 export function presetBoard(preset: BoardPreset): { layout: BoardLayout; rows: number; cols: number } {
   return { layout: { map: preset.map }, ...presetSize(preset) };
+}
+
+/**
+ * Whether this preset is the board the user is looking at.
+ *
+ * A preset drawing a plain veroboard leaves no layout behind — that is what
+ * a plain board is — so it is recognised by its size instead of its map.
+ */
+export function presetIsActive(preset: BoardPreset, board: Board): boolean {
+  if (board.layout?.map) return board.layout.map === preset.map;
+  const s = presetSize(preset);
+  return mapIsPlain(preset.map) && s.rows === board.rows && s.cols === board.cols;
 }

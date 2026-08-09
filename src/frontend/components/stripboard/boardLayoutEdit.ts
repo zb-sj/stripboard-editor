@@ -1,14 +1,21 @@
 import { Board, BoardLayout } from "@/types";
-import { boardTopology } from "./boardTopology";
+import { boardTopology, mapIsPlain } from "./boardTopology";
 import { formatBoardMap } from "./boardMap";
 
 // Editing a board's layout, as opposed to reading it. Only the store calls
 // these; everything that just wants to know what the copper does goes to
 // boardTopology instead.
 
-/** A layout that says nothing is stored as no layout at all. */
+/**
+ * A layout that says nothing is stored as no layout at all — and a map
+ * drawing a plain veroboard says nothing, since that is what a board with
+ * no layout already is. Dropping it here is what keeps "has a layout" and
+ * "is a custom board" the same question: going back to plain stripboard
+ * really does leave a plain board, size fields and all.
+ */
 export function normalizeLayout(layout: BoardLayout | undefined): BoardLayout | undefined {
-  return layout?.map.trim() ? { map: layout.map } : undefined;
+  if (!layout?.map.trim()) return undefined;
+  return mapIsPlain(layout.map) ? undefined : { map: layout.map };
 }
 
 /**

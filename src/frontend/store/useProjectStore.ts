@@ -998,8 +998,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((s) => {
       const next = normalizeLayout(layout ?? undefined);
       // A map carries its own size, so the board takes it; without one the
-      // board keeps the size the user set.
-      const size = next?.map ? mapSize(next.map) : null;
+      // board keeps the size the user set. The size comes from the map as
+      // given rather than from what is stored, because a map drawing a plain
+      // veroboard normalises away and still means "make the board this big".
+      const size = layout?.map.trim() ? mapSize(layout.map) : null;
       const board: Board = { ...s.board, ...(size ?? {}), layout: next };
       const topo = boardTopology(board);
       // Cuts and wires that no longer land on copper would be invisible but

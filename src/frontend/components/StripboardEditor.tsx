@@ -243,9 +243,16 @@ export default function StripboardEditor({ readOnly = false, hideSidebar = false
   };
 
   const { segments, connectivity, conflictCount } = useStripSegments();
+  // A map states the board's size, so the size fields report rather than set
+  // it. Only a custom board keeps a map — a plain one drops it — so these two
+  // are the same question, and the fields go back to normal when it does.
   const boardIsCustom = hasCustomLayout(board);
-  // A map states the board's size, so the size fields report rather than set it.
   const boardIsMapped = board.layout?.map !== undefined;
+  // Read-only on its own is invisible: the field still looks and behaves like
+  // somewhere to type. Say it in the styling too.
+  const sizeFieldClass = `w-[4.5rem] border rounded px-2 py-1 text-sm text-center outline-none ${boardIsMapped
+    ? "border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-neutral-500 dark:text-neutral-500 cursor-not-allowed"
+    : "border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 dark:bg-neutral-800 focus:border-blue-400"}`;
 
   const incompleteNets = useMemo(
     () => checkNetCompleteness(nets, netAssignments, segments, connectivity, components, componentDefs),
@@ -350,7 +357,7 @@ export default function StripboardEditor({ readOnly = false, hideSidebar = false
                   ? "The board map sets this. Change it under Board, or right-click a row number to insert or remove one."
                   : undefined}
                 onChange={(e) => setBoardSize(Math.max(1, parseInt(e.target.value) || 1), board.cols)}
-                className="w-[4.5rem] border border-neutral-300 dark:border-neutral-600 rounded px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 dark:bg-neutral-800 outline-none focus:border-blue-400 text-center"
+                className={sizeFieldClass}
               />
               <button
                 onClick={() => setBoardDimLock("rows", !board.lockedRows)}
@@ -376,7 +383,7 @@ export default function StripboardEditor({ readOnly = false, hideSidebar = false
                   ? "The board map sets this. Change it under Board, or right-click a column number to insert or remove one."
                   : undefined}
                 onChange={(e) => setBoardSize(board.rows, Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-[4.5rem] border border-neutral-300 dark:border-neutral-600 rounded px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 dark:bg-neutral-800 outline-none focus:border-blue-400 text-center"
+                className={sizeFieldClass}
               />
               <button
                 onClick={() => setBoardDimLock("cols", !board.lockedCols)}

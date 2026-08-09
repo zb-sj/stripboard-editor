@@ -14,7 +14,7 @@ import {
 import { bodyStyle, bellyPath, dipNotch, usbPort, diagonalBody } from "./stripboard/componentGlyphs";
 import { computeWireLaneOffsets } from "./stripboard/wireLanes";
 import { computeStripSegments } from "./stripboard/stripSegments";
-import { barRect, segmentBars, severedGaps } from "./stripboard/copperBars";
+import { barRect, boardCuts, segmentBars } from "./stripboard/copperBars";
 import { boardTopology, hasHole } from "./stripboard/boardTopology";
 
 const HOLE_SP = 12; // compact spacing for preview
@@ -107,8 +107,9 @@ export default function StripboardPreview({ data, maxWidth = 280, maxHeight = 16
     // board, so each bar is trimmed to that window — a strip running off
     // the edge should stop at it, not trail past the last hole shown.
     const OVERSHOOT = 0.3;
+    const cutIndex = boardCuts(board);
     const copper = computeStripSegments(board, placed, componentDefs, netAssignments)
-      .flatMap((seg) => segmentBars(seg, board, severedGaps(board)))
+      .flatMap((seg) => segmentBars(seg, board, cutIndex))
       .map((b) => ({
         ...b,
         row1: Math.max(b.row1, minRow - OVERSHOOT),

@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useProjectStore } from "@/store/useProjectStore";
-import { BOARD_PRESETS, findPreset, presetBoard, presetSize } from "./boardPresets";
+import { BOARD_PRESETS, findPreset, presetBoard, presetIsActive, presetSize } from "./boardPresets";
 import { parseBoardMap, formatBoardMap } from "./boardMap";
 import { boardTopology } from "./boardTopology";
 
@@ -104,7 +104,7 @@ export default function BoardConfigPanel({ onClose }: { onClose: () => void }) {
         <p className="mt-4 text-xs font-semibold text-neutral-700 dark:text-neutral-200">Start from</p>
         <div className="mt-1.5 flex flex-col gap-1">
           {BOARD_PRESETS.map((preset) => {
-            const active = board.layout?.map === preset.map;
+            const active = presetIsActive(preset, board);
             const s = presetSize(preset);
             return (
               <button

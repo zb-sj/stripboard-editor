@@ -15,7 +15,8 @@ const { boardTopology, hasHole, hasHLink, hasVLink, mapSize } =
   require(path.join(OUT, "components/stripboard/boardTopology.js"));
 const { cutWouldBeRedundant, hasCustomLayout } =
   require(path.join(OUT, "components/stripboard/boardTopology.js"));
-const { shiftLayout } = require(path.join(OUT, "components/stripboard/boardLayoutEdit.js"));
+const { normalizeLayout, shiftLayout } = require(path.join(OUT, "components/stripboard/boardLayoutEdit.js"));
+const { boardCuts, segmentBars } = require(path.join(OUT, "components/stripboard/copperBars.js"));
 const { segmentContains } = require(path.join(OUT, "components/stripboard/stripSegments.js"));
 
 /** A board whose copper is the given map */
@@ -431,6 +432,65 @@ const joined = (segs, a, b) => {
   assert(offBoard.length === 0, `M17: no pin sits where the board has no hole (${offBoard.join(" ")})`);
   const wasted = res.cuts.filter((c) => c.kind !== "hole" && cutWouldBeRedundant(b, c.row, c.col));
   assert(wasted.length === 0, `M17: no cut on copper that is not there (${JSON.stringify(wasted)})`);
+}
+
+// ── M18: every stocked board parses, and is what it claims ──
+// A preset that fails its own parser is the one bug the user is guaranteed
+// to hit, since picking it is the first thing the panel offers.
+{
+  for (const preset of BOARD_PRESETS) {
+    const g = parseBoardMap(preset.map);
+    assert(g.issues.length === 0,
+      `M18: ${preset.id} parses clean (${JSON.stringify(g.issues)})`);
+    const { rows, cols } = presetBoard(preset);
+    assert(g.rows === rows && g.cols === cols,
+      `M18: ${preset.id} is the size it advertises (${g.rows}x${g.cols} vs ${rows}x${cols})`);
+  }
+}
+
+// ── M19: a plain map is not a custom board ──
+// Picking plain stripboard has to leave a plain board behind, or the size
+// fields stay locked and there is no way back out of the map.
+{
+  const plain = findPreset("plain");
+  assert(normalizeLayout({ map: plain.map }) === undefined,
+    "M19: a map drawing plain veroboard is stored as no layout at all");
+  assert(normalizeLayout({ map: findPreset("electrocookie-quarter").map }) !== undefined,
+    "M19: a map with rails is kept");
+
+  // The two predicates the editor asks — "is this custom" and "does it have
+  // a map" — must never disagree, whichever way the board was arrived at.
+  for (const preset of BOARD_PRESETS) {
+    const layout = normalizeLayout({ map: preset.map });
+    const { rows, cols } = presetBoard(preset);
+    const board = { ...emptyBoard(rows, cols), ...(layout ? { layout } : {}) };
+    assert(hasCustomLayout(board) === (layout !== undefined),
+      `M19: ${preset.id} agrees on whether it is custom (custom=${hasCustomLayout(board)}, mapped=${layout !== undefined})`);
+  }
+}
+
+// ── M20: copper runs up to a drilled hole ──
+// A drilled cut should read as a break *on* the hole. Stopping a full pitch
+// short of it on both sides blanks out three times as much strip.
+{
+  const b = { ...emptyBoard(1, 5), cuts: [{ row: 0, col: 2, kind: "hole" }] };
+  const cuts = boardCuts(b);
+  const bars = computeStripSegments(b, [], DEFS, []).flatMap((s) => segmentBars(s, b, cuts));
+  const left = bars.find((x) => x.col1 < 0.5);
+  const right = bars.find((x) => x.col2 > 3.5);
+  assert(left && right, `M20: the drilled hole leaves a run each side (${bars.length} bars)`);
+  const gap = right.col1 - left.col2;
+  assert(gap > 0 && gap < 0.5,
+    `M20: the gap is the hole, not a pitch of blank strip (${gap.toFixed(2)} pitches)`);
+  assert(!bars.some((x) => x.col1 < 2 && x.col2 > 2),
+    "M20: nothing is drawn through the drilled hole");
+
+  // A between-cut at the same gap wins: that break really is between holes.
+  const both = { ...b, cuts: [...b.cuts, { row: 0, col: 1 }] };
+  const bothBars = computeStripSegments(both, [], DEFS, []).flatMap((s) => segmentBars(s, both, boardCuts(both)));
+  const beside = bothBars.find((x) => x.col1 < 0.5);
+  assert(beside && beside.col2 <= 1 + 0.4001,
+    `M20: a between-cut beside the drill still stops short of it (${beside && beside.col2})`);
 }
 
 finish("boardconfig");

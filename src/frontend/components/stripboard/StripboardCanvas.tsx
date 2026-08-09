@@ -30,7 +30,7 @@ import {
   getGroupForWire,
 } from "./connectivity";
 import { StripSegment } from "./stripSegments";
-import { barRect, segmentBars, segmentEnds, severedGaps } from "./copperBars";
+import { barRect, boardCuts, segmentBars, segmentEnds } from "./copperBars";
 import { boardTopology, hasHole } from "./boardTopology";
 import { bodyStyle, bellyPath, dipNotch, usbPort } from "./componentGlyphs";
 import PlacedComponent, { suppressNextCanvasClick } from "./PlacedComponent";
@@ -116,7 +116,7 @@ export default function StripboardCanvas({
   // property of the physical board, so it renders as fixed furniture the
   // user cannot click away.
   const topo = useMemo(() => boardTopology(board), [board]);
-  const severed = useMemo(() => severedGaps(board), [board]);
+  const cuts = useMemo(() => boardCuts(board), [board]);
   const COPPER_WIDTH = { strip: STRIP_HEIGHT, bus: BUS_WIDTH };
 
 
@@ -904,7 +904,7 @@ export default function StripboardCanvas({
             const opacity = isHighlighted ? 0.9 : group?.hasConflict ? 0.8 : hasNets ? 0.5 : 0.4;
             const showHalo = isHighlighted || group?.hasConflict;
 
-            const rects = segmentBars(seg, board, severed).map((b) =>
+            const rects = segmentBars(seg, board, cuts).map((b) =>
               barRect(b, (c) => holeCenter(0, c).x, (r) => holeCenter(r, 0).y, COPPER_WIDTH)
             );
 

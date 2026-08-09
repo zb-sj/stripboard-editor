@@ -78,14 +78,32 @@ function plainTopology(rows: number, cols: number): BoardTopology {
 // text itself — the one thing the answer actually depends on.
 const byMap = new Map<string, BoardTopology | null>();
 
+/**
+ * Whether a map amounts to a plain veroboard: every hole present, every row
+ * one uninterrupted strip, and nothing else going on. Drawing one is
+ * allowed — it is just not a *custom* board, and callers that ask whether
+ * this board is special deserve the same answer either way.
+ */
+function isPlain(t: Omit<BoardTopology, "plain">): boolean {
+  return (
+    t.hole.every((h) => h === 1) &&
+    t.hLink.every((l) => l === 1) &&
+    t.vLink.every((l) => l === 0) &&
+    t.tag === null &&
+    t.snapX.length === 0 &&
+    t.snapY.length === 0
+  );
+}
+
 function fromMap(source: string): BoardTopology | null {
   const hit = byMap.get(source);
   if (hit !== undefined) return hit;
   const { issues: _issues, ...grid } = parseBoardMap(source);
-  const built: BoardTopology | null =
-    grid.rows === 0 || grid.cols === 0
-      ? null
-      : { ...grid, tag: grid.tag.some((x) => x !== null) ? grid.tag : null, plain: false };
+  let built: BoardTopology | null = null;
+  if (grid.rows > 0 && grid.cols > 0) {
+    const t = { ...grid, tag: grid.tag.some((x) => x !== null) ? grid.tag : null };
+    built = { ...t, plain: isPlain(t) };
+  }
   if (byMap.size > 32) byMap.clear();
   byMap.set(source, built);
   return built;
@@ -109,6 +127,11 @@ export function boardTopology(board: Board): BoardTopology {
     bySize.set(key, t);
   }
   return t;
+}
+
+/** Whether a map describes nothing more than a plain veroboard. */
+export function mapIsPlain(source: string): boolean {
+  return fromMap(source)?.plain ?? false;
 }
 
 /** The size a map implies, for keeping board.rows/cols in step with it. */

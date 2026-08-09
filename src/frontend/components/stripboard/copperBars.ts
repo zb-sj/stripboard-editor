@@ -1,5 +1,6 @@
 import { Board } from "@/types";
 import { boardTopology, hasHLink, hasVLink } from "./boardTopology";
+import { HOLE_RADIUS, HOLE_SPACING } from "./boardLayout";
 import { StripSegment, segmentHoles } from "./stripSegments";
 
 // ── Drawing the copper ─────────────────────────────────
@@ -26,16 +27,34 @@ export interface CopperBar {
 /** How far copper reaches past the last hole of a run, in hole pitches. */
 const OVERHANG = 0.4;
 
-/** The gaps the user has cut, as a set of `row*(cols-1)+col`. */
-export function severedGaps(board: Board): Set<number> {
-  const set = new Set<number>();
+/**
+ * How far short of a drilled-out hole its neighbouring copper stops, in
+ * hole pitches. The copper runs right up to the hole rather than stopping
+ * a whole pitch away, so the break reads as being *on* the hole instead of
+ * as a wide blank in the middle of the strip.
+ */
+const DRILL_GAP = (HOLE_RADIUS + 1.5) / HOLE_SPACING;
+
+/** Where the user has broken the copper. */
+export interface BoardCuts {
+  /** Gaps severed by a between-cut, as `row*(cols-1)+col` */
+  severed: Set<number>;
+  /** Holes drilled out, as `row*cols+col` */
+  drilled: Set<number>;
+}
+
+export function boardCuts(board: Board): BoardCuts {
+  const severed = new Set<number>();
+  const drilled = new Set<number>();
   const cols = board.cols;
   for (const cut of board.cuts) {
-    if (cut.kind !== "hole" && cut.col >= 0 && cut.col < cols - 1) {
-      set.add(cut.row * (cols - 1) + cut.col);
+    if (cut.kind === "hole") {
+      if (cut.col >= 0 && cut.col < cols) drilled.add(cut.row * cols + cut.col);
+    } else if (cut.col >= 0 && cut.col < cols - 1) {
+      severed.add(cut.row * (cols - 1) + cut.col);
     }
   }
-  return set;
+  return { severed, drilled };
 }
 
 /**
@@ -45,8 +64,9 @@ export function severedGaps(board: Board): Set<number> {
  * in any segment, is never drawn through) and the links come from the
  * board, so the two can never disagree about what is connected.
  */
-export function segmentBars(seg: StripSegment, board: Board, severed: Set<number>): CopperBar[] {
+export function segmentBars(seg: StripSegment, board: Board, cuts: BoardCuts): CopperBar[] {
   const topo = boardTopology(board);
+  const { severed, drilled } = cuts;
   const holes = segmentHoles(seg);
   const cols = board.cols;
   const inSeg = new Set<number>(holes.map((h) => h.row * cols + h.col));
@@ -55,6 +75,22 @@ export function segmentBars(seg: StripSegment, board: Board, severed: Set<number
     hasHLink(topo, r, c) && !severed.has(r * (cols - 1) + c);
   const joinedV = (r: number, c: number) =>
     inSeg.has(r * cols + c) && inSeg.has((r + 1) * cols + c) && hasVLink(topo, r, c);
+
+  // Where a run stops. Normally OVERHANG past its last hole — but if the
+  // next hole along was drilled out, the copper it was joined to is still
+  // there right up to the drill, so the run carries on to meet it. A
+  // between-cut at the same gap wins: that break is between the two holes.
+  const drilledAt = (r: number, c: number) => drilled.has(r * cols + c);
+  const leftEnd = (r: number, c: number) =>
+    drilledAt(r, c - 1) && hasHLink(topo, r, c - 1) && !severed.has(r * (cols - 1) + c - 1)
+      ? c - 1 + DRILL_GAP : c - OVERHANG;
+  const rightEnd = (r: number, c: number) =>
+    drilledAt(r, c + 1) && hasHLink(topo, r, c) && !severed.has(r * (cols - 1) + c)
+      ? c + 1 - DRILL_GAP : c + OVERHANG;
+  const topEnd = (r: number, c: number) =>
+    drilledAt(r - 1, c) && hasVLink(topo, r - 1, c) ? r - 1 + DRILL_GAP : r - OVERHANG;
+  const bottomEnd = (r: number, c: number) =>
+    drilledAt(r + 1, c) && hasVLink(topo, r, c) ? r + 1 - DRILL_GAP : r + OVERHANG;
 
   const bars: CopperBar[] = [];
   const startsRun = new Set<number>();
@@ -65,13 +101,13 @@ export function segmentBars(seg: StripSegment, board: Board, severed: Set<number
     if (joinedH(row, col) && !joinedH(row, col - 1)) {
       let end = col;
       while (joinedH(row, end)) end++;
-      bars.push({ row1: row, col1: col - OVERHANG, row2: row, col2: end + OVERHANG, vertical: false });
+      bars.push({ row1: row, col1: leftEnd(row, col), row2: row, col2: rightEnd(row, end), vertical: false });
       for (let c = col; c <= end; c++) startsRun.add(row * cols + c);
     }
     if (joinedV(row, col) && !joinedV(row - 1, col)) {
       let end = row;
       while (joinedV(end, col)) end++;
-      bars.push({ row1: row - OVERHANG, col1: col, row2: end + OVERHANG, col2: col, vertical: true });
+      bars.push({ row1: topEnd(row, col), col1: col, row2: bottomEnd(end, col), col2: col, vertical: true });
       for (let r = row; r <= end; r++) startsRun.add(r * cols + col);
     }
   }
@@ -80,7 +116,7 @@ export function segmentBars(seg: StripSegment, board: Board, severed: Set<number
   // would have been, as a lone hole on a veroboard always looked.
   for (const { row, col } of holes) {
     if (!startsRun.has(row * cols + col)) {
-      bars.push({ row1: row, col1: col - OVERHANG, row2: row, col2: col + OVERHANG, vertical: false });
+      bars.push({ row1: row, col1: leftEnd(row, col), row2: row, col2: rightEnd(row, col), vertical: false });
     }
   }
   return bars;

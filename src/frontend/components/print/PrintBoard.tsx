@@ -12,7 +12,7 @@ import {
 import { bodyStyle, bellyPath, dipNotch, usbPort, diagonalBody } from "@/components/stripboard/componentGlyphs";
 import { computeWireLaneOffsets } from "@/components/stripboard/wireLanes";
 import { boardTopology, hasHole } from "@/components/stripboard/boardTopology";
-import { segmentBars, segmentEnds, severedGaps } from "@/components/stripboard/copperBars";
+import { boardCuts, segmentBars, segmentEnds } from "@/components/stripboard/copperBars";
 import { computeStripSegments } from "@/components/stripboard/stripSegments";
 
 // Standard stripboard pitch is 0.1 in = 2.54 mm. The board SVG is authored in
@@ -51,7 +51,7 @@ export default function PrintBoard({ variant, showLabels, showWires, showCuts, s
   const compStroke = mirror ? "#bbbbbb" : "#000000";
 
   const topo = boardTopology(board);
-  const severed = severedGaps(board);
+  const cuts = boardCuts(board);
   const segments = computeStripSegments(board, components, componentDefs, []);
 
   // Only the holes the board actually has get drilled markers.
@@ -69,7 +69,7 @@ export default function PrintBoard({ variant, showLabels, showWires, showCuts, s
   // the drilled holes it must not run through.
   const strips: React.ReactNode[] = [];
   segments.forEach((seg, i) => {
-    for (const [k, b] of segmentBars(seg, board, severed).entries()) {
+    for (const [k, b] of segmentBars(seg, board, cuts).entries()) {
       strips.push(
         <line key={`s${i}-${k}`}
           x1={colX(b.col1)} y1={rowY(b.row1)} x2={colX(b.col2)} y2={rowY(b.row2)}
